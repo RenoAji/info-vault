@@ -14,4 +14,54 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  email     String   @unique
+  username  String   @unique
+  password  String   @db.VarChar(255)
+  vaults    Vault[]
+}
 
+model Vault {
+  id          Int       @id @default(autoincrement())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  name        String    @db.VarChar(255)
+  description String    @db.VarChar(1024)
+  owner       User?     @relation(fields: [ownerId], references: [id])
+  ownerId     Int?
+  sources     Source[]
+  notes       Note[]
+  maps        Map[]
+}
+
+model Source {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  name     String   @db.VarChar(255)
+  vault     Vault?   @relation(fields: [vaultId], references: [id])
+  vaultId   Int?
+  url       String  @db.VarChar(2048)
+}
+
+model Note {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  name     String   @db.VarChar(255)
+  vault     Vault?   @relation(fields: [vaultId], references: [id])
+  vaultId   Int?
+  content   String  @db.VarChar(2048)
+}
+
+model Map {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  name     String    @db.VarChar(255)
+  vault     Vault?   @relation(fields: [vaultId], references: [id])
+  vaultId   Int?
+  content   Json     @db.Json
+}

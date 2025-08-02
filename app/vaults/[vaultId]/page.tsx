@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 
 export default function VaultPage() {
   const { vaultId } = useParams();
+  type File = { id: string; name: string; url: string };
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [activeTab, setActiveTab] = useState<"chat" | "notes">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "notes" | "maps">("chat");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dummy chat and notes state
@@ -18,9 +19,35 @@ export default function VaultPage() {
   ]);
   const [userInput, setUserInput] = useState("");
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  React.useEffect(() => {
+    fetch("/api/source")
+      .then(res => res.json())
+      .then(data => setUploadedFiles(data || []))
+      .catch(() => setUploadedFiles([]));
+  }, []);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setUploadedFiles([...uploadedFiles, ...Array.from(e.target.files)]);
+      
+      const formData = new FormData();
+      Object.values(e.target.files).forEach((file) => {
+        formData.append("file", file);
+      });
+
+      //formData.append("vaultId", vaultId as string);
+
+      const response = await fetch(`/api/source/?vaultId=${vaultId}`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        alert("Upload ok : " + result.name);
+        setUploadedFiles([...uploadedFiles, result]);
+      } else {
+        alert("Upload failed");
+      }
     }
   };
 
@@ -65,6 +92,7 @@ export default function VaultPage() {
               ref={fileInputRef}
               className="hidden"
               onChange={handleFileChange}
+              name="file"
             />
           </div>
           {uploadedFiles.length > 0 && (
@@ -91,6 +119,12 @@ export default function VaultPage() {
             onClick={() => setActiveTab("notes")}
           >
             Notes
+          </button>
+          <button
+            className={`px-6 py-2 font-semibold rounded-t-lg focus:outline-none transition-all ${activeTab === "maps" ? "bg-white dark:bg-gray-900 border-x border-t border-b-0 border-gray-200 dark:border-gray-800 text-purple-600 dark:text-purple-400" : "text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400"}`}
+            onClick={() => setActiveTab("maps")}
+          >
+            Mind Maps
           </button>
         </div>
 
@@ -127,6 +161,16 @@ export default function VaultPage() {
                   Send
                 </button>
               </form>
+            </div>
+          ) : activeTab === "maps" ? (
+            <div className="text-gray-600 dark:text-gray-300">
+              <p className="mb-4">Mind maps will be displayed here. (Feature coming soon)</p>
+              <button
+                className="bg-gradient-to-r from-purple-500 to-blue-600 text-white px-6 py-2 rounded-full font-semibold hover:from-purple-600 hover:to-blue-700 transition-all shadow"
+                onClick={() => alert("Mind map feature coming soon!")}
+              >
+                Generate MindMap
+              </button>
             </div>
           ) : (
             <div className="space-y-4">
