@@ -6,18 +6,27 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "chroma:clear": "tsx script/clear.ts",
+    "chroma:peek": "tsx script/peek.ts"
   },
   "dependencies": {
+    "@chroma-core/default-embed": "^0.1.8",
+    "@langchain/community": "^0.3.49",
+    "@langchain/core": "^0.3.66",
+    "@langchain/langgraph": "^0.4.2",
     "@prisma/client": "^6.13.0",
     "@prisma/extension-accelerate": "^2.0.2",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
+    "chromadb": "^3.0.10",
+    "langchain": "^0.3.30",
     "next": "15.4.4",
     "next-auth": "^4.24.11",
+    "pdf-parse": "^1.1.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "zod": "^4.0.14"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
