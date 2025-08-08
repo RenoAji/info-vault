@@ -1,10 +1,12 @@
 "use client";
 import React, { useRef, useState } from "react";
 import Navbar from "@/app/components/Navbar";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 export default function VaultPage() {
   const { vaultId } = useParams();
+  const searchParams = useSearchParams();
+  const vaultName = searchParams.get("vaultName");
   type File = { id: string; name: string; url: string };
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [activeTab, setActiveTab] = useState<"chat" | "notes" | "maps">("chat");
@@ -12,23 +14,39 @@ export default function VaultPage() {
 
   // Dummy chat and notes state
   const [chatMessages, setChatMessages] = useState([
-    { sender: "ai", text: "Welcome! Ask me anything about your vault." },
+    {
+      role: "assistant",
+      content: "Welcome! Ask me anything about your vault.",
+    },
   ]);
-  const [notes, setNotes] = useState([
-    "Summary and key points from your uploaded documents will appear here.",
-  ]);
+
+  // Note state
+  const [note, setNote] = useState(
+    "Summary and key points from your uploaded documents will appear here."
+  );
   const [userInput, setUserInput] = useState("");
 
-  // Paste source as text state
+  // Text Source Modal state
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [pastedText, setPastedText] = useState("");
   const [pasteError, setPasteError] = useState("");
 
+  // Note generation loading state
+  const [noteLoading, setNoteLoading] = useState(false);
+
+  // Fetch uploaded files and notes
   React.useEffect(() => {
-    fetch("/api/source")
+    fetch("/api/source/?vaultId=" + vaultId)
       .then((res) => res.json())
       .then((data) => setUploadedFiles(data || []))
       .catch(() => setUploadedFiles([]));
+  }, []);
+
+  React.useEffect(() => {
+    fetch("/api/notes/get?vaultId=" + vaultId)
+      .then((res) => res.json())
+      .then((data) => setNote(data.content || "No notes available."))
+      .catch(() => setNote("No notes available."));
   }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,7 +83,7 @@ export default function VaultPage() {
     if (!userInput.trim()) return;
 
     // Add user message to chat
-    const userMessage = { sender: "user", text: userInput };
+    const userMessage = { role: "user", content: userInput };
     setChatMessages((prev) => [...prev, userMessage]);
 
     // Clear input
@@ -75,7 +93,7 @@ export default function VaultPage() {
       const response = await fetch(`/api/chat/?vaultId=${vaultId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userInput }),
+        body: JSON.stringify({ messages: chatMessages.concat(userMessage) }), // Send all messages including user input
       });
 
       const result = await response.json();
@@ -83,15 +101,15 @@ export default function VaultPage() {
         // Add AI response to chat
         setChatMessages((prev) => [
           ...prev,
-          { sender: "ai", text: result.answer },
+          { role: "assistant", content: result.answer },
         ]);
       } else {
         // Handle error
         setChatMessages((prev) => [
           ...prev,
           {
-            sender: "ai",
-            text: "Sorry, I encountered an error processing your request.",
+            role: "assistant",
+            content: "Sorry, I encountered an error processing your request.",
           },
         ]);
       }
@@ -100,8 +118,8 @@ export default function VaultPage() {
       setChatMessages((prev) => [
         ...prev,
         {
-          sender: "ai",
-          text: "Sorry, I encountered an error processing your request.",
+          role: "assistant",
+          content: "Sorry, I encountered an error processing your request.",
         },
       ]);
     }
@@ -130,12 +148,36 @@ export default function VaultPage() {
     }
   };
 
+  // Then replace your button with this:
+  const handleGenerateNote = async () => {
+    setNoteLoading(true);
+    try {
+      const response = await fetch(`/api/notes/generate/?vaultId=${vaultId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setNote(result.notes || " ");
+      } else {
+        console.error("Failed to generate notes:", result.error);
+        setNote("Failed to generate notes. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error generating notes:", error);
+      setNote("An error occurred while generating notes.");
+    } finally {
+      setNoteLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-6">
-          Vault #{vaultId}
+          Vault : {vaultName}
         </h1>
         {/* Upload Section */}
         <section className="mb-10">
@@ -223,17 +265,17 @@ export default function VaultPage() {
                   <div
                     key={idx}
                     className={`flex ${
-                      msg.sender === "user" ? "justify-end" : "justify-start"
+                      msg.role === "user" ? "justify-end" : "justify-start"
                     }`}
                   >
                     <div
                       className={`px-4 py-2 rounded-lg max-w-[70%] ${
-                        msg.sender === "user"
+                        msg.role === "user"
                           ? "bg-blue-500 text-white"
                           : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white"
                       }`}
                     >
-                      {msg.text}
+                      {msg.content}
                     </div>
                   </div>
                 ))}
@@ -268,19 +310,17 @@ export default function VaultPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {notes.map((note, idx) => (
-                <div
-                  key={idx}
-                  className="bg-purple-100 dark:bg-purple-900/30 text-purple-900 dark:text-purple-200 rounded p-4"
-                >
+              <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-900 dark:text-purple-200 rounded p-4 max-h-96 overflow-y-auto">
+                <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed">
                   {note}
-                </div>
-              ))}
+                </pre>
+              </div>
               <button
                 className="mt-4 bg-gradient-to-r from-purple-500 to-blue-600 text-white px-6 py-2 rounded-full font-semibold hover:from-purple-600 hover:to-blue-700 transition-all shadow"
-                onClick={() => setNotes([...notes, "(Generated note example)"])}
+                onClick={handleGenerateNote}
+                disabled={noteLoading}
               >
-                Generate Notes
+                {noteLoading ? "Generating..." : "Generate Notes"}
               </button>
             </div>
           )}

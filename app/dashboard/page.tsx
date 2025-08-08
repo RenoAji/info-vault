@@ -2,25 +2,27 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import Navbar from "@/app/components/Navbar";
-import { useSession } from "next-auth/react"
+import { useSession } from "next-auth/react";
 import prisma from "@/lib/prisma";
 
 export default function Dashboard() {
-  
   // All hooks must be called unconditionally
   type Vault = { id: string; name: string; description: string };
   const [Vaults, setVaults] = useState<Vault[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
   const [error, setError] = useState("");
-  const [editModal, setEditModal] = useState<{ open: boolean; vault: Vault | null }>({ open: false, vault: null });
+  const [editModal, setEditModal] = useState<{
+    open: boolean;
+    vault: Vault | null;
+  }>({ open: false, vault: null });
 
   const { data: session, status } = useSession();
 
   React.useEffect(() => {
     fetch("/api/vault")
-      .then(res => res.json())
-      .then(data => setVaults(data || []))
+      .then((res) => res.json())
+      .then((data) => setVaults(data || []))
       .catch(() => setVaults([]));
   }, []);
 
@@ -42,7 +44,9 @@ export default function Dashboard() {
   };
   const handleCloseModal = () => setShowModal(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
@@ -65,7 +69,7 @@ export default function Dashboard() {
           return;
         }
         const newVault = await res.json();
-      
+
         setVaults([...Vaults, newVault]);
         setShowModal(false);
       })
@@ -104,7 +108,9 @@ export default function Dashboard() {
       });
       if (!res.ok) throw new Error("Failed to update vault");
       const updatedVault = await res.json();
-      setVaults(Vaults.map((v) => (v.id === updatedVault.id ? updatedVault : v)));
+      setVaults(
+        Vaults.map((v) => (v.id === updatedVault.id ? updatedVault : v))
+      );
       setEditModal({ open: false, vault: null });
     } catch {
       setError("Failed to update vault.");
@@ -140,7 +146,9 @@ export default function Dashboard() {
           {Vaults.map((kb) => (
             <div key={kb.id} className="relative">
               <Link
-                href={`/vaults/${kb.id}`}
+                href={`/vaults/${kb.id}/?vaultName=${encodeURIComponent(
+                  kb.name
+                )}`}
                 className="block bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow hover:shadow-lg transition-all hover:scale-[1.02]"
               >
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
@@ -185,10 +193,14 @@ export default function Dashboard() {
             >
               &times;
             </button>
-            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">New Vault</h2>
+            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+              New Vault
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-gray-700 dark:text-gray-300 mb-1 font-medium">Name<span className="text-red-500">*</span></label>
+                <label className="block text-gray-700 dark:text-gray-300 mb-1 font-medium">
+                  Name<span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   name="name"
@@ -200,7 +212,9 @@ export default function Dashboard() {
                 />
               </div>
               <div>
-                <label className="block text-gray-700 dark:text-gray-300 mb-1 font-medium">Description</label>
+                <label className="block text-gray-700 dark:text-gray-300 mb-1 font-medium">
+                  Description
+                </label>
                 <textarea
                   name="description"
                   value={form.description}
@@ -242,10 +256,14 @@ export default function Dashboard() {
             >
               &times;
             </button>
-            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Edit Vault</h2>
+            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+              Edit Vault
+            </h2>
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
-                <label className="block text-gray-700 dark:text-gray-300 mb-1 font-medium">Name<span className="text-red-500">*</span></label>
+                <label className="block text-gray-700 dark:text-gray-300 mb-1 font-medium">
+                  Name<span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   name="name"
@@ -257,7 +275,9 @@ export default function Dashboard() {
                 />
               </div>
               <div>
-                <label className="block text-gray-700 dark:text-gray-300 mb-1 font-medium">Description</label>
+                <label className="block text-gray-700 dark:text-gray-300 mb-1 font-medium">
+                  Description
+                </label>
                 <textarea
                   name="description"
                   value={form.description}

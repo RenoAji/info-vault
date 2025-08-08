@@ -32,7 +32,8 @@ model Vault {
   owner       User?     @relation(fields: [ownerId], references: [id])
   ownerId     Int?
   sources     Source[]
-  notes       Note[]
+  note        Note?     
+  noteId      Int?      @unique
   maps        Map[]
 }
 
@@ -47,20 +48,19 @@ model Source {
 }
 
 model Note {
-  id        Int      @id @default(autoincrement())
+  vaultId   Int     @id
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  name     String   @db.VarChar(255)
+  name      String   @db.VarChar(255)
   vault     Vault?   @relation(fields: [vaultId], references: [id])
-  vaultId   Int?
-  content   String  @db.VarChar(2048)
+  content   String   @db.Text
 }
 
 model Map {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  name     String    @db.VarChar(255)
+  name      String   @db.VarChar(255)
   vault     Vault?   @relation(fields: [vaultId], references: [id])
   vaultId   Int?
   content   Json     @db.Json

@@ -19,7 +19,6 @@ export const GET = async (req: NextRequest) => {
     },
   });
 
-  console.log("Fetched sources:", sources);
   return NextResponse.json(sources);
 };
 
@@ -187,13 +186,15 @@ export const POST = async (req: NextRequest) => {
       ids.push(`file-${Date.now()}-${i}`);
       metadatas.push({
         source: path.resolve(UPLOAD_DIR, newFileName),
-        vaultId: vaultId ? parseInt(vaultId) : null, // Ensure vaultId is an integer
+        vaultId: vaultId ? parseInt(vaultId) : null, // Ensure vaultId is an integer,
+        page: input.metadata.loc.pageNumber || 0, // Add page metadata if available
+        linesFrom: input.metadata.loc.lines.from || 0,
+        linesTo: input.metadata.loc.lines.to || 0,
       });
     }
 
     // Store it in the vector database
     const collection = await getOrCreateCollection("source-embeddings");
-    console.log(collection.embeddingFunction);
     try {
       await collection.add({
         ids,
