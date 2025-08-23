@@ -34,7 +34,7 @@ model Vault {
   sources     Source[]
   note        Note?     
   noteId      Int?      @unique
-  maps        Map[]
+  maps        Map?
 }
 
 model Source {
@@ -43,7 +43,7 @@ model Source {
   updatedAt DateTime @updatedAt
   name     String   @db.VarChar(255)
   vault     Vault?   @relation(fields: [vaultId], references: [id])
-  vaultId   Int?
+  vaultId   Int?    
   url       String  @db.VarChar(2048)
 }
 
@@ -62,6 +62,6 @@ model Map {
   updatedAt DateTime @updatedAt
   name      String   @db.VarChar(255)
   vault     Vault?   @relation(fields: [vaultId], references: [id])
-  vaultId   Int?
+  vaultId   Int?     @unique
   content   Json     @db.Json
 }

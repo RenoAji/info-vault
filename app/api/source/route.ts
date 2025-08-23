@@ -23,6 +23,7 @@ export const GET = async (req: NextRequest) => {
 };
 
 export const POST = async (req: NextRequest) => {
+  const BATCH_SIZE = 100;
   const vaultId = req.nextUrl.searchParams.get("vaultId");
   const splitter = new RecursiveCharacterTextSplitter({
     chunkSize: 500,
@@ -49,39 +50,47 @@ export const POST = async (req: NextRequest) => {
     const filePath = path.resolve(UPLOAD_DIR, fileName);
     fs.writeFileSync(filePath, text);
 
-    // Chunking and store to chroma
-    const splitted = await splitter.createDocuments([text]);
-    const docs = [];
-    const ids = [];
-    const metadatas = [];
-    for (let i = 0; i < splitted.length; i++) {
-      const doc = splitted[i];
-      docs.push(doc.pageContent);
-      ids.push(`text-${Date.now()}-${i}`);
-      metadatas.push({
-        source: filePath,
-        vaultId: vaultId ? parseInt(vaultId) : null, // Ensure vaultId is an integer
-      });
-    }
-
-    // Use the shared helper
+    // Chunking, batching, and store to chroma
     const collection = await getOrCreateCollection("source-embeddings");
+    const splitted = await splitter.createDocuments([text]);
+    
+    for (let i = 0; i < splitted.length; i += BATCH_SIZE) {
+      const batch = splitted.slice(i, i + BATCH_SIZE);
+      const docs = [];
+      const ids = [];
+      const metadatas = [];
+      
+      for (let j = 0; j < batch.length; j++) {
+        const doc = batch[j];
+        if (doc.pageContent.length < 10) {
+          continue; // Skip empty chunks
+        }
+        docs.push(doc.pageContent);
+        ids.push(`text-${Date.now()}-${i + j}`);
+        metadatas.push({
+          source: filePath,
+          vaultId: vaultId ? parseInt(vaultId) : null, // Ensure vaultId is an integer
+        });
+      }
 
-    // Store it in the vector database
-    try {
-      await collection.add({
-        ids,
-        documents: docs,
-        metadatas,
-      });
-    } catch (error) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to store documents in the vector database",
-        },
-        { status: 500 }
-      );
+      if (docs.length > 0) {
+        try {
+          await collection.add({
+            ids,
+            documents: docs,
+            metadatas,
+          });
+        } catch (error) {
+          console.error("Error storing text documents in vector database:", error);
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Failed to store documents in the vector database",
+            },
+            { status: 500 }
+          );
+        }
+      }
     }
 
     // Save file metadata to regular database
@@ -127,13 +136,18 @@ export const POST = async (req: NextRequest) => {
     }
 
     // Rename the file to ensure uniqueness
-
     const newFileName = `${Date.now()}_${(body.file as File).name}`;
     fs.renameSync(
       path.resolve(UPLOAD_DIR, (body.file as File).name),
       path.resolve(UPLOAD_DIR, newFileName)
     );
-    body.file = new File([buffer!], newFileName, {
+
+    // Convert Node.js Buffer to ArrayBuffer for File constructor
+    const arrayBuffer = buffer!.buffer.slice(
+      buffer!.byteOffset,
+      buffer!.byteOffset + buffer!.byteLength
+    );
+    body.file = new File([arrayBuffer as ArrayBuffer], newFileName, {
       type: (body.file as File).type,
     });
 
@@ -172,45 +186,49 @@ export const POST = async (req: NextRequest) => {
       );
     }
 
-    // Chunking and store to chroma
+    // Chunking, batching, and store to chroma
+    const collection = await getOrCreateCollection("source-embeddings");
     const splitted = await splitter.splitDocuments(docs);
-    const inputs = [];
-    const ids = [];
-    const metadatas = [];
-    for (let i = 0; i < splitted.length; i++) {
-      const input = splitted[i];
-      if (input.pageContent.length < 10) {
-        continue; // Skip empty chunks
+    for (let i = 0; i < splitted.length; i += BATCH_SIZE) {
+      const batch = splitted.slice(i, i + BATCH_SIZE);
+      const inputs = [];
+      const ids = [];
+      const metadatas = [];
+      for (let j = 0; j < batch.length; j++) {
+        const input = batch[j];
+        if (input.pageContent.length < 10) {
+          continue; // Skip empty chunks
+        }
+        inputs.push(input.pageContent);
+        ids.push(`file-${Date.now()}-${i + j}`);
+        metadatas.push({
+          source: path.resolve(UPLOAD_DIR, newFileName),
+          vaultId: vaultId ? parseInt(vaultId) : null,
+          page: input.metadata.loc.pageNumber || 0,
+          linesFrom: input.metadata.loc.lines.from || 0,
+          linesTo: input.metadata.loc.lines.to || 0,
+        });
       }
-      inputs.push(input.pageContent);
-      ids.push(`file-${Date.now()}-${i}`);
-      metadatas.push({
-        source: path.resolve(UPLOAD_DIR, newFileName),
-        vaultId: vaultId ? parseInt(vaultId) : null, // Ensure vaultId is an integer,
-        page: input.metadata.loc.pageNumber || 0, // Add page metadata if available
-        linesFrom: input.metadata.loc.lines.from || 0,
-        linesTo: input.metadata.loc.lines.to || 0,
-      });
+
+      try {
+        await collection.add({
+          ids,
+          documents: inputs,
+          metadatas,
+        });
+      } catch (error) {
+        console.error("Error storing documents in vector database:", error);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Failed to store documents in the vector database",
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Store it in the vector database
-    const collection = await getOrCreateCollection("source-embeddings");
-    try {
-      await collection.add({
-        ids,
-        documents: inputs,
-        metadatas,
-      });
-    } catch (error) {
-      console.error("Error storing documents in vector database:", error);
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to store documents in the vector database",
-        },
-        { status: 500 }
-      );
-    }
 
     return NextResponse.json({
       success: true,

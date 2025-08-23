@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateNote } from "@/lib/services/generate-note";
 
 export const GET = async (req: NextRequest) => {
+  console.log("Mind map generation request received");
   const vaultId = req.nextUrl.searchParams.get("vaultId");
 
   // Validate vaultId

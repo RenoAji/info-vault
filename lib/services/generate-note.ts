@@ -3,25 +3,14 @@ import fs from "fs";
 import prisma from "@/lib/prisma";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { TextLoader } from "langchain/document_loaders/fs/text";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { TokenTextSplitter } from "@langchain/textsplitters";
-import {
-  collapseDocs,
-  splitListOfDocs,
-} from "langchain/chains/combine_documents/reduce";
 import { Document } from "@langchain/core/documents";
-import { StateGraph, Annotation, Send } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 
 // Constants
-const TOKEN_MAX = 1000;
-const CHUNK_SIZE = 1000;
+const TOKEN_MAX = 1500;
+const CHUNK_SIZE = 1500;
 const CHUNK_OVERLAP = 0;
-
-// Types
-interface SummaryState {
-  content: string;
-}
 
 interface Source {
   id: number;
@@ -70,12 +59,23 @@ export const generateNote = async (
     const vaultIdInt: number = parseInt(String(vaultId));
 
     // Initialize LLM
+    // const llm = new ChatOpenAI({
+    //   model: OPENROUTER_MODEL || "openrouter/horizon-beta",
+    //   apiKey: OPENROUTER_API_KEY,
+    //   temperature: 0.7, // Reduced for more consistent summaries
+    //   configuration: {
+    //     baseURL: "https://openrouter.ai/api/v1",
+    //   },
+    // });
+
+    const { GOOGLE_API_KEY } = process.env;
+
     const llm = new ChatOpenAI({
-      model: OPENROUTER_MODEL || "openrouter/horizon-beta",
+      model: OPENROUTER_MODEL || "deepseek/deepseek-r1-0528-qwen3-8b:free",
       apiKey: OPENROUTER_API_KEY,
-      temperature: 0.7, // Reduced for more consistent summaries
+      temperature: 1.0,
       configuration: {
-        baseURL: "https://openrouter.ai/api/v1",
+        baseURL: "https://openrouter.ai/api/v1", // The OpenRouter API endpoint
       },
     });
 
@@ -102,11 +102,8 @@ export const generateNote = async (
       };
     }
 
-    // Create summarization graph
-    const app = createSummarizationGraph(llm);
-
-    // Generate summary
-    const finalSummary: string | null = await generateSummary(app, docs);
+    // Generate summary using optimized approach
+    const finalSummary: string = await generateOptimizedNote(docs, llm);
     if (!finalSummary) {
       return {
         success: false,
@@ -191,128 +188,96 @@ async function loadDocuments(sources: Source[]): Promise<Document[]> {
   return docs;
 }
 
-function createSummarizationGraph(llm: ChatOpenAI) {
-  // Prompts
-  const mapPrompt = ChatPromptTemplate.fromMessages([
-    ["user", "Write a concise summary of the following:\n\n{context}"],
-  ]);
-
-  const reducePrompt = ChatPromptTemplate.fromMessages([
-    [
-      "user",
-      `The following is a set of summaries:
-{docs}
-Take these and distill it into a final, consolidated summary of the main themes.`,
-    ],
-  ]);
-
-  // Length function
-  async function lengthFunction(documents: Document[]) {
-    const tokenCounts = await Promise.all(
-      documents.map((doc) => llm.getNumTokens(doc.pageContent))
-    );
-    return tokenCounts.reduce((sum, count) => sum + count, 0);
+// Optimized note generation with minimal AI requests
+async function generateOptimizedNote(
+  docs: Document[],
+  llm: { invoke: (prompt: any) => Promise<any> }
+): Promise<string> {
+  // If we have few documents, use simple concatenation (1 request)
+  if (docs.length <= 3) {
+    return await generateSimpleNote(docs, llm);
   }
 
-  // Reduce function
-  async function reduce(docs: Document[]) {
-    const prompt = await reducePrompt.invoke({
-      docs: docs.map((doc) => doc.pageContent).join("\n\n"),
-    });
-    const response = await llm.invoke(prompt);
+  // For many documents, use batched approach (2-4 requests total)
+  return await generateBatchedNote(docs, llm);
+}
+
+// Simple concatenation for small document sets (1 AI request)
+async function generateSimpleNote(
+  docs: Document[],
+  llm: { invoke: (prompt: any) => Promise<any> }
+): Promise<string> {
+  const allContent = docs.map((doc) => doc.pageContent).join("\n\n---\n\n");
+
+  // Truncate if too long (stay within token limits)
+  const maxChars = 15000; // Roughly 4000 tokens
+  const truncatedContent =
+    allContent.length > maxChars
+      ? allContent.substring(0, maxChars) + "\n\n[Content truncated...]"
+      : allContent;
+
+  const prompt = [
+    {
+      role: "user",
+      content: `Create a comprehensive summary of the following documents. Focus on the main themes, key points, and important insights:\n\n${truncatedContent}`,
+    },
+  ];
+
+  const response = await llm.invoke(prompt);
+  return String(response.content);
+}
+
+// Batch processing for larger document sets (2-4 AI requests)
+async function generateBatchedNote(
+  docs: Document[],
+  llm: { invoke: (prompt: any) => Promise<any> }
+): Promise<string> {
+  const batchSize = 8; // Process 8 chunks at once to minimize requests
+  const batches = [];
+
+  for (let i = 0; i < docs.length; i += batchSize) {
+    const batch = docs.slice(i, i + batchSize);
+    const batchContent = batch.map((doc) => doc.pageContent).join("\n\n");
+    batches.push(batchContent);
+  }
+
+  // If only one batch, use simple approach
+  if (batches.length === 1) {
+    const response = await llm.invoke([
+      {
+        role: "user",
+        content: `Create a comprehensive summary of the following:\n\n${batches[0]}`,
+      },
+    ]);
     return String(response.content);
   }
 
-  // State definition
-  const OverallState = Annotation.Root({
-    contents: Annotation<string[]>,
-    summaries: Annotation<string[]>({
-      reducer: (state, update) => state.concat(update),
-    }),
-    collapsedSummaries: Annotation<Document[]>,
-    finalSummary: Annotation<string>,
-  });
-
-  // Node functions
-  const generateSummary = async (state: SummaryState) => {
-    const prompt = await mapPrompt.invoke({ context: state.content });
-    const response = await llm.invoke(prompt);
-    return { summaries: [String(response.content)] };
-  };
-
-  const mapSummaries = (state: typeof OverallState.State) => {
-    return state.contents.map(
-      (content) => new Send("generateSummary", { content })
-    );
-  };
-
-  const collectSummaries = async (state: typeof OverallState.State) => {
-    return {
-      collapsedSummaries: state.summaries.map(
-        (summary) => new Document({ pageContent: summary })
-      ),
-    };
-  };
-
-  const collapseSummaries = async (state: typeof OverallState.State) => {
-    const docLists = splitListOfDocs(
-      state.collapsedSummaries,
-      lengthFunction,
-      TOKEN_MAX
-    );
-    const results = [];
-    for (const docList of docLists) {
-      results.push(await collapseDocs(docList, reduce));
-    }
-    return { collapsedSummaries: results };
-  };
-
-  const shouldCollapse = async (state: typeof OverallState.State) => {
-    const numTokens = await lengthFunction(state.collapsedSummaries);
-    return numTokens > TOKEN_MAX ? "collapseSummaries" : "generateFinalSummary";
-  };
-
-  const generateFinalSummary = async (state: typeof OverallState.State) => {
-    const response = await reduce(state.collapsedSummaries);
-    return { finalSummary: response };
-  };
-
-  // Build and return graph
-  return new StateGraph(OverallState)
-    .addNode("generateSummary", generateSummary)
-    .addNode("collectSummaries", collectSummaries)
-    .addNode("collapseSummaries", collapseSummaries)
-    .addNode("generateFinalSummary", generateFinalSummary)
-    .addConditionalEdges("__start__", mapSummaries, ["generateSummary"])
-    .addEdge("generateSummary", "collectSummaries")
-    .addConditionalEdges("collectSummaries", shouldCollapse, [
-      "collapseSummaries",
-      "generateFinalSummary",
-    ])
-    .addConditionalEdges("collapseSummaries", shouldCollapse, [
-      "collapseSummaries",
-      "generateFinalSummary",
-    ])
-    .addEdge("generateFinalSummary", "__end__")
-    .compile();
-}
-
-async function generateSummary(
-  app: any,
-  docs: Document[]
-): Promise<string | null> {
-  const stream = await app.stream(
-    { contents: docs.map((doc) => doc.pageContent) },
-    { recursionLimit: 10 }
+  // Summarize each batch (parallel processing for speed)
+  const batchSummaries = await Promise.all(
+    batches.map(async (batchContent, index) => {
+      const response = await llm.invoke([
+        {
+          role: "user",
+          content: `Summarize the key points from this section (Part ${
+            index + 1
+          }):\n\n${batchContent}`,
+        },
+      ]);
+      return response.content;
+    })
   );
 
-  for await (const step of stream) {
-    if (step.generateFinalSummary?.finalSummary) {
-      return step.generateFinalSummary.finalSummary;
-    }
-  }
+  // Final consolidated summary (1 more request)
+  const finalSummary = await llm.invoke([
+    {
+      role: "user",
+      content: `Create a final comprehensive summary by combining these section summaries. Focus on the main themes and key insights:\n\n${batchSummaries.join(
+        "\n\n---\n\n"
+      )}`,
+    },
+  ]);
 
-  return null;
+  return String(finalSummary.content);
 }
 
 async function saveNote(vaultId: number, content: string) {

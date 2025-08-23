@@ -15,17 +15,24 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { toolsCondition } from "@langchain/langgraph/prebuilt";
 
 export const POST = async (req: NextRequest) => {
+  console.log("Chat request received");
   try {
     // llm
-    const { OPENROUTER_API_KEY, OPENROUTER_MODEL } = process.env;
+    const { OPENROUTER_API_KEY, OPENROUTER_MODEL, GOOGLE_API_KEY } =
+      process.env;
     const llm = new ChatOpenAI({
-      model: OPENROUTER_MODEL || "openrouter/horizon-beta",
+      model: OPENROUTER_MODEL || "deepseek/deepseek-r1-0528-qwen3-8b:free",
       apiKey: OPENROUTER_API_KEY,
       temperature: 1.0,
       configuration: {
         baseURL: "https://openrouter.ai/api/v1", // The OpenRouter API endpoint
       },
     });
+    // Initialize the Gemini model
+    // const llm = new ChatGoogleGenerativeAI({
+    //   model: "gemini-1.5-flash",
+    //   apiKey: GOOGLE_API_KEY,
+    // });
 
     // User chat
     const { messages, vaultId } = await req.json();
@@ -37,50 +44,89 @@ export const POST = async (req: NextRequest) => {
 
     const retrieveSchema = z.object({ query: z.string() });
 
+    // Add caching for vector queries
+    const queryCache = new Map();
+
     const retrieve = tool(
       async ({ query }) => {
-        console.log("query : ", query);
-        const retrievedDocs = await collection.query({
+        // Simple cache to avoid repeated queries
+        const cacheKey = `${vaultId}-${query}`;
+        if (queryCache.has(cacheKey)) {
+          return queryCache.get(cacheKey);
+        }
+
+        const result = await collection.query({
           queryTexts: [query],
           nResults: 5,
           where: vaultId ? { vaultId: parseInt(vaultId) } : undefined,
           include: ["documents", "metadatas"],
         });
 
-        const docs = retrievedDocs.documents?.[0] ?? [];
-        const metadatas = retrievedDocs.metadatas?.[0] ?? [];
-        const serialized = [];
-        for (let i = 0; i < docs.length; i++) {
-          serialized.push(
-            `Source: ${metadatas[i]?.source || "Undefined Source"}\nContent: ${
-              docs[i]
-            }`
-          );
-        }
+        // Extract and format the documents
+        const documents = result.documents?.[0] ?? [];
+        const metadatas = result.metadatas?.[0] ?? [];
 
-        // Join the array into a single string here
-        const formattedContent = serialized.join("\n");
+        // Format as content string
+        const formattedContent = documents
+          .map((doc, index) => {
+            const metadata = metadatas[index];
+            return `Document ${index + 1}:\n${doc}\nSource: ${
+              metadata?.source || "Unknown"
+            }\nPage: ${metadata?.page || "N/A"}\n---`;
+          })
+          .join("\n");
 
-        // Return the formatted string as the main content
-        return [formattedContent, retrievedDocs];
+        // Return as two-tuple for content_and_artifact format
+        const toolResult = [
+          formattedContent, // content
+          {
+            documents,
+            metadatas,
+            query,
+            resultsCount: documents.length,
+          }, // artifact
+        ];
+
+        queryCache.set(cacheKey, toolResult);
+        return toolResult;
       },
       {
         name: "retrieve",
         description: "Retrieve information from user uploaded files or texts.",
         schema: retrieveSchema,
-        responseFormat: "content_and_artifact",
+        responseFormat: "content_and_artifact", // This requires a two-tuple return
       }
     );
+
+    const llmWithTools = (() => {
+      const llm = new ChatOpenAI({
+        model: OPENROUTER_MODEL || "deepseek/deepseek-r1-0528-qwen3-8b:free",
+        apiKey: OPENROUTER_API_KEY,
+        temperature: 1.0,
+        configuration: {
+          baseURL: "https://openrouter.ai/api/v1", // The OpenRouter API endpoint
+        },
+      });
+      return llm.bindTools([retrieve]);
+    })();
 
     // Step 1: Generate an AIMessage that may include a tool-call to be sent.
     async function queryOrRespond(state: typeof MessagesAnnotation.State) {
       const systemMessage = new SystemMessage(
-        `You are an assistant with a task to answer user questions 
-      based on the user's uploaded documents.
-      You should use the 'retrieve' tool to fetch relevant information.
-      Except for general conversation (like "hello"), answer directly.`
+        `You are InfoVault AI, an intelligent document assistant. Your role is to help users understand and analyze their uploaded documents.
+
+Key Instructions:
+- Use the 'retrieve' tool to search through the user's documents when they ask questions about their content
+- Extract specific keywords or concepts from user questions to create effective search queries
+- For general greetings or small talk, respond directly without using tools
+- Always prioritize accuracy and cite sources when referencing document content
+- If unsure about document content, use the retrieve tool rather than guessing
+
+Example queries to extract:
+- User: "What are the main points about machine learning?" → Query: "machine learning main points"
+- User: "How does the integration process work?" → Query: "integration process steps"
+- User: "Tell me about the conclusion" → Query: "conclusion summary findings"`
       );
-      const llmWithTools = llm.bindTools([retrieve]);
       const response = await llmWithTools.invoke([
         systemMessage,
         ...state.messages,
@@ -108,15 +154,24 @@ export const POST = async (req: NextRequest) => {
 
       // Format into prompt
       const docsContent = toolMessages.map((doc) => doc.content).join("\n");
+      console.log("Docs content for LLM:", docsContent);
       // In your generate function
 
-      const systemMessageContent =
-        "You are an assistant for question-answering tasks. " +
-        "Your task is to answer the user's last question using the context provided below. " +
-        "You should use the retrieved information to provide a concise and accurate answer. " +
-        "If the context does not provide enough information, you can say 'I don't know'" +
-        "\n\n--- CONTEXT ---\n" +
-        `${docsContent}`;
+      const systemMessageContent = `You are InfoVault AI, a specialized document analysis assistant. Your task is to provide comprehensive and accurate answers based on the retrieved document context.
+
+Guidelines:
+- Analyze the provided context carefully and synthesize information from multiple sources when available
+- Provide specific, actionable answers that directly address the user's question
+- When referencing information, mention the source document or page when possible
+- If the context contains conflicting information, acknowledge this and explain the differences
+- Structure complex answers with clear headings, bullet points, or numbered lists for readability
+- If the context lacks sufficient information to fully answer the question, clearly state what's missing
+- Maintain a professional but conversational tone
+
+Context from your knowledge base:
+${docsContent}
+
+Now, provide a comprehensive answer to the user's question using this context.`;
 
       const conversationMessages = state.messages.filter(
         (message) =>
