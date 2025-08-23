@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# InfoVault
 
-## Getting Started
+A knowlede base assistant that let users chat about their document, generate note, and generate mindmap.
 
-First, run the development server:
+## ✨ Features
+
+- **📁 Document Upload**: Support for PDF, TXT, with intelligent text extraction
+- **💬 AI Chat Interface**: Interactive chat with your documents using advanced LLMs (OpenRouter/Google Generative AI)
+- **📝 Smart Note Generation**: AI-powered note creation and summarization from uploaded documents
+- **🧠 Mind Maps**: Visual mind map generation with using React Flow
+- **🔍 Vector Search**: Semantic search through document content using ChromaDB embeddings
+- **🔐 Authentication**: User authentication and session management with NextAuth
+- **📱 Responsive Design**: Modern, mobile-friendly interface with dark/light mode support
+- **📊 Vault Management**: Organize documents into separate vaults with individual chat histories
+
+## 🖼️ Demo / Screenshots
+
+Check this linkedIn post : [link]
+
+## 🛠️ Tech Stack
+
+- **Fullsatck:** Next.js (typescript)
+- **ORM:** Prisma
+- **Database:** Prisma Postgre
+- **AI:** Langchain.js
+- **Vector DB:** ChromaDB
+
+## ⚙️ Setup
+
+How to run this app locally
+
+Clone the repo :
+
+```bash
+# Clone the repo
+git clone https://github.com/RenoAji/info-vault
+
+# Install NPM packages
+npm install
+```
+
+Environment Variable.
+.env file :
+
+```bash
+DATABASE_URL="YOUR DATABASE URL"
+AUTH_SECRET="YOUR SECRET KEY"
+NEXTAUTH_URL="http://localhost:3000" # Your app url
+OPENROUTER_API_KEY="YOUR OPENROUTER API KEY"
+OPENROUTER_MODEL="z-ai/glm-4.5-air:free" # Or any other model you choose
+```
+
+You can generate the secret key using :
+
+```
+openssl rand -base64 32
+```
+
+Start the development server :
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Run the chroma vector database server :
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx chroma run
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Additional
 
-## Learn More
+### Scripts (check package.json) :
 
-To learn more about Next.js, take a look at the following resources:
+Check api limit (/script/check-limit.ts) :
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run script:limit
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Clear all embedding in the vector database (/script/clear.ts) :
 
-## Deploy on Vercel
+```bash
+npm run chroma:clear
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Peek the embedding collection (/script/peek.ts) :
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run chroma:peek
+```
+
+Delete the embedding in a specific vault (/script/delete.ts) :
+
+```bash
+npm run chroma:delete
+```

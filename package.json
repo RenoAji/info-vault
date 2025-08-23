@@ -7,8 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "script:limit": "tsx script/check-limit.ts",
     "chroma:clear": "tsx script/clear.ts",
-    "chroma:peek": "tsx script/peek.ts"
+    "chroma:peek": "tsx script/peek.ts",
+    "chroma:delete": "tsx script/delete.ts"
   },
   "dependencies": {
     "@chroma-core/default-embed": "^0.1.8",
