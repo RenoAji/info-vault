@@ -5,17 +5,16 @@ A knowlede base assistant that let users chat about their document, generate not
 ## ✨ Features
 
 - **📁 Document Upload**: Support for PDF, TXT, with intelligent text extraction
-- **💬 AI Chat Interface**: Interactive chat with your documents using advanced LLMs (OpenRouter/Google Generative AI)
+- **💬 AI Chat Interface**: Interactive chat with your documents using LLM
 - **📝 Smart Note Generation**: AI-powered note creation and summarization from uploaded documents
 - **🧠 Mind Maps**: Visual mind map generation with using React Flow
-- **🔍 Vector Search**: Semantic search through document content using ChromaDB embeddings
 - **🔐 Authentication**: User authentication and session management with NextAuth
 - **📱 Responsive Design**: Modern, mobile-friendly interface with dark/light mode support
 - **📊 Vault Management**: Organize documents into separate vaults with individual chat histories
 
 ## 🖼️ Demo / Screenshots
 
-Check this linkedIn post : [link]
+Check this linkedIn post : [[link](https://www.linkedin.com/posts/septareno-nugroho-aji-4743992b3_di-libur-semester-kemarin-saya-mengisi-liburan-activity-7366497458316599297-1QVA?utm_source=share&utm_medium=member_desktop&rcm=ACoAAEtXbFgBdJIhp_XLo9Xr66iV8q9R8-7HNAA)]
 
 ## 🛠️ Tech Stack
 

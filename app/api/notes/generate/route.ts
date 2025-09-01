@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateNote } from "@/lib/services/generate-note";
 
 export const GET = async (req: NextRequest) => {
-  console.log("Mind map generation request received");
+  console.log("Notes generation request received");
   const vaultId = req.nextUrl.searchParams.get("vaultId");
 
   // Validate vaultId
@@ -14,15 +14,17 @@ export const GET = async (req: NextRequest) => {
   }
 
   // Generate note
-  const res = generateNote(vaultId);
-  if ((await res).success) {
+  const res = await generateNote(vaultId);
+
+  console.log("Note generation done");
+  if (res.success) {
     return NextResponse.json(
-      { success: true, notes: (await res).notes },
+      { success: true, notes: res.notes },
       { status: 200 }
     );
   } else {
     return NextResponse.json(
-      { success: false, error: (await res).error },
+      { success: false, error: res.error },
       { status: 500 }
     );
   }

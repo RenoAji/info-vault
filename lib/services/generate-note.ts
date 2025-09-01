@@ -58,18 +58,6 @@ export const generateNote = async (
 
     const vaultIdInt: number = parseInt(String(vaultId));
 
-    // Initialize LLM
-    // const llm = new ChatOpenAI({
-    //   model: OPENROUTER_MODEL || "openrouter/horizon-beta",
-    //   apiKey: OPENROUTER_API_KEY,
-    //   temperature: 0.7, // Reduced for more consistent summaries
-    //   configuration: {
-    //     baseURL: "https://openrouter.ai/api/v1",
-    //   },
-    // });
-
-    const { GOOGLE_API_KEY } = process.env;
-
     const llm = new ChatOpenAI({
       model: OPENROUTER_MODEL || "deepseek/deepseek-r1-0528-qwen3-8b:free",
       apiKey: OPENROUTER_API_KEY,

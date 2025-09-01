@@ -29,7 +29,7 @@ model Vault {
   updatedAt   DateTime  @updatedAt
   name        String    @db.VarChar(255)
   description String    @db.VarChar(1024)
-  owner       User?     @relation(fields: [ownerId], references: [id])
+  owner       User?     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   ownerId     Int?
   sources     Source[]
   note        Note?     
@@ -42,7 +42,7 @@ model Source {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   name     String   @db.VarChar(255)
-  vault     Vault?   @relation(fields: [vaultId], references: [id])
+  vault     Vault?   @relation(fields: [vaultId], references: [id], onDelete: Cascade)
   vaultId   Int?    
   url       String  @db.VarChar(2048)
 }
@@ -52,7 +52,7 @@ model Note {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   name      String   @db.VarChar(255)
-  vault     Vault?   @relation(fields: [vaultId], references: [id])
+  vault     Vault?   @relation(fields: [vaultId], references: [id], onDelete: Cascade)
   content   String   @db.Text
 }
 
@@ -61,7 +61,7 @@ model Map {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   name      String   @db.VarChar(255)
-  vault     Vault?   @relation(fields: [vaultId], references: [id])
+  vault     Vault?   @relation(fields: [vaultId], references: [id], onDelete: Cascade)
   vaultId   Int?     @unique
   content   Json     @db.Json
 }

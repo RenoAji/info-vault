@@ -104,7 +104,9 @@ Required JSON Format Example:
 \`\`\`
 
 Notes to Process:
-{note}`);
+{note}
+
+Remember: Return ONLY valid JSON, no other text or formatting.`);
 
     // parser instance
     const parser = new JsonOutputParser();
