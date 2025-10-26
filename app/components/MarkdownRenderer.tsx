@@ -4,6 +4,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 
+// 💡 ADD THESE PLUGINS FOR LATEX AND SECURITY
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
+
 interface MarkdownRendererProps {
   content: string;
   className?: string;
@@ -16,10 +22,17 @@ export default function MarkdownRenderer({
   return (
     <div className={`prose prose-sm max-w-none dark:prose-invert ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
+        // ✅ Add remarkMath to process math syntax
+        remarkPlugins={[remarkGfm, remarkMath]}
+        // ✅ Add the rehype plugins in the correct order
+        rehypePlugins={[
+          rehypeRaw, // 1. Allow raw HTML (needed for KaTeX)
+          rehypeSanitize, // 2. Sanitize the HTML to prevent XSS attacks
+          rehypeKatex, // 3. Render the math equations
+          rehypeHighlight, // 4. Apply syntax highlighting to code blocks
+        ]}
         components={{
-          // Custom styling for different elements
+          // Your custom styling for elements
           h1: ({ children }) => (
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 mt-6">
               {children}
@@ -89,7 +102,6 @@ export default function MarkdownRenderer({
               {children}
             </blockquote>
           ),
-          // Custom table styling
           table: ({ children }) => (
             <div className="overflow-x-auto mb-4">
               <table className="min-w-full border border-gray-200 dark:border-gray-700 rounded-lg">

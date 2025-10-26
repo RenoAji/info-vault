@@ -141,10 +141,13 @@ export default function VaultPage() {
     setChatLoading(true);
 
     try {
-      const response = await fetch(`/api/chat/?vaultId=${vaultId}`, {
+      const response = await fetch(`/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: chatMessages.concat(userMessage) }), // Send all messages including user input
+        body: JSON.stringify({
+          messages: chatMessages.concat(userMessage),
+          vaultId: vaultId,
+        }), // Send all messages including user input
       });
 
       const result = await response.json();
@@ -417,13 +420,17 @@ export default function VaultPage() {
                     }`}
                   >
                     <div
-                      className={`px-4 py-2 rounded-lg max-w-[70%] ${
+                      className={`max-w-[80%] px-4 py-2 rounded-lg ${
                         msg.role === "user"
                           ? "bg-blue-500 text-white"
-                          : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white"
+                          : "bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white"
                       }`}
                     >
-                      <MarkdownRenderer content={msg.content} />
+                      {msg.role === "user" ? (
+                        msg.content
+                      ) : (
+                        <MarkdownRenderer content={msg.content} />
+                      )}
                     </div>
                   </div>
                 ))}

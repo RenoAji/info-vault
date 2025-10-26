@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import SessionProviderWrapper from "./SessionProviderWrapper";
+// In your main layout file (e.g., app/layout.js)
+import "katex/dist/katex.min.css"; // For LaTeX styling
+import "highlight.js/styles/github-dark.css"; // For code block styling
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

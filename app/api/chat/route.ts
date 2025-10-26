@@ -13,15 +13,19 @@ import {
 import { MessagesAnnotation } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { toolsCondition } from "@langchain/langgraph/prebuilt";
+import {
+  generateSystemPrompt,
+  queryOrRespondSystemPrompt,
+} from "@/lib/prompts";
+import { LRUCache } from "lru-cache";
 
 export const POST = async (req: NextRequest) => {
   console.log("Chat request received");
   try {
     // llm
-    const { OPENROUTER_API_KEY, OPENROUTER_MODEL, GOOGLE_API_KEY } =
-      process.env;
+    const { OPENROUTER_API_KEY, OPENROUTER_MODEL } = process.env;
     const llm = new ChatOpenAI({
-      model: OPENROUTER_MODEL || "deepseek/deepseek-r1-0528-qwen3-8b:free",
+      model: OPENROUTER_MODEL,
       apiKey: OPENROUTER_API_KEY,
       temperature: 1.0,
       configuration: {
@@ -36,16 +40,17 @@ export const POST = async (req: NextRequest) => {
 
     // User chat
     const { messages, vaultId } = await req.json();
+    console.log(vaultId);
 
     // Get Chroma vector store
-
-    // Use the shared helper instead of getCollection
     const collection = await getOrCreateCollection("source-embeddings");
-
     const retrieveSchema = z.object({ query: z.string() });
 
     // Add caching for vector queries
-    const queryCache = new Map();
+    const queryCache = new LRUCache<string, any>({
+      max: 100, // max 100 items
+      ttl: 1000 * 60 * 5, // 5 minute TTL
+    });
 
     const retrieve = tool(
       async ({ query }) => {
@@ -98,35 +103,11 @@ export const POST = async (req: NextRequest) => {
       }
     );
 
-    const llmWithTools = (() => {
-      const llm = new ChatOpenAI({
-        model: OPENROUTER_MODEL || "deepseek/deepseek-r1-0528-qwen3-8b:free",
-        apiKey: OPENROUTER_API_KEY,
-        temperature: 1.0,
-        configuration: {
-          baseURL: "https://openrouter.ai/api/v1", // The OpenRouter API endpoint
-        },
-      });
-      return llm.bindTools([retrieve]);
-    })();
+    const llmWithTools = llm.bindTools([retrieve]);
 
     // Step 1: Generate an AIMessage that may include a tool-call to be sent.
     async function queryOrRespond(state: typeof MessagesAnnotation.State) {
-      const systemMessage = new SystemMessage(
-        `You are InfoVault AI, an intelligent document assistant. Your role is to help users understand and analyze their uploaded documents.
-
-Key Instructions:
-- Use the 'retrieve' tool to search through the user's documents when they ask questions about their content
-- Extract specific keywords or concepts from user questions to create effective search queries
-- For general greetings or small talk, respond directly without using tools
-- Always prioritize accuracy and cite sources when referencing document content
-- If unsure about document content, use the retrieve tool rather than guessing
-
-Example queries to extract:
-- User: "What are the main points about machine learning?" → Query: "machine learning main points"
-- User: "How does the integration process work?" → Query: "integration process steps"
-- User: "Tell me about the conclusion" → Query: "conclusion summary findings"`
-      );
+      const systemMessage = new SystemMessage(queryOrRespondSystemPrompt);
       const response = await llmWithTools.invoke([
         systemMessage,
         ...state.messages,
@@ -157,21 +138,7 @@ Example queries to extract:
       console.log("Docs content for LLM:", docsContent);
       // In your generate function
 
-      const systemMessageContent = `You are InfoVault AI, a specialized document analysis assistant. Your task is to provide comprehensive and accurate answers based on the retrieved document context.
-
-Guidelines:
-- Analyze the provided context carefully and synthesize information from multiple sources when available
-- Provide specific, actionable answers that directly address the user's question
-- When referencing information, mention the source document or page when possible
-- If the context contains conflicting information, acknowledge this and explain the differences
-- Structure complex answers with clear headings, bullet points, or numbered lists for readability
-- If the context lacks sufficient information to fully answer the question, clearly state what's missing
-- Maintain a professional but conversational tone
-
-Context from your knowledge base:
-${docsContent}
-
-Now, provide a comprehensive answer to the user's question using this context.`;
+      const systemMessageContent = generateSystemPrompt(docsContent);
 
       const conversationMessages = state.messages.filter(
         (message) =>

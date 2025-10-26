@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 
 :root {
   --background: #ffffff;
@@ -20,8 +21,7 @@ body {
 
 /* Grid pattern background */
 .bg-grid-pattern {
-  background-image: 
-    linear-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 1px),
+  background-image: linear-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 0, 0, 0.1) 1px, transparent 1px);
   background-size: 20px 20px;
 }
@@ -47,4 +47,86 @@ html {
 .hover-lift:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* Enhanced KaTeX Math Styling */
+.katex-display {
+  margin: 1.5em 0 !important;
+  padding: 1.25rem !important;
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.05) 0%,
+    rgba(139, 92, 246, 0.05) 100%
+  ) !important;
+  border-radius: 12px !important;
+  border-left: 4px solid #6366f1 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .katex-display {
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.1) 0%,
+      rgba(139, 92, 246, 0.1) 100%
+    ) !important;
+    border-left-color: #818cf8 !important;
+  }
+}
+
+/* Inline math styling */
+.katex {
+  font-size: 1.05em !important;
+}
+
+/* Display math centering and sizing */
+.katex-display > .katex {
+  font-size: 1.15em !important;
+  text-align: center !important;
+}
+
+/* Math in dark mode - ensure proper contrast */
+@media (prefers-color-scheme: dark) {
+  .katex {
+    color: #e5e7eb !important;
+  }
+
+  .katex .mord,
+  .katex .mbin,
+  .katex .mrel,
+  .katex .mop,
+  .katex .mopen,
+  .katex .mclose,
+  .katex .mpunct {
+    color: #e5e7eb !important;
+  }
+}
+
+/* Smooth scrolling for math overflow */
+.katex-display::-webkit-scrollbar {
+  height: 6px;
+}
+
+.katex-display::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.katex-display::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 3px;
+}
+
+.katex-display::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  .katex-display::-webkit-scrollbar-thumb {
+    background: rgba(129, 140, 248, 0.3);
+  }
+
+  .katex-display::-webkit-scrollbar-thumb:hover {
+    background: rgba(129, 140, 248, 0.5);
+  }
 }

@@ -15,7 +15,7 @@ export const GET = async (req: NextRequest) => {
   // Fetch uploaded files from the database
   const sources = await prisma.source.findMany({
     where: {
-      vaultId: vaultId ? parseInt(vaultId) : undefined, // Ensure vaultId is an integer
+      vaultId: vaultId ? parseInt(vaultId) : undefined,
     },
   });
 
@@ -53,13 +53,13 @@ export const POST = async (req: NextRequest) => {
     // Chunking, batching, and store to chroma
     const collection = await getOrCreateCollection("source-embeddings");
     const splitted = await splitter.createDocuments([text]);
-    
+
     for (let i = 0; i < splitted.length; i += BATCH_SIZE) {
       const batch = splitted.slice(i, i + BATCH_SIZE);
       const docs = [];
       const ids = [];
       const metadatas = [];
-      
+
       for (let j = 0; j < batch.length; j++) {
         const doc = batch[j];
         if (doc.pageContent.length < 10) {
@@ -81,7 +81,10 @@ export const POST = async (req: NextRequest) => {
             metadatas,
           });
         } catch (error) {
-          console.error("Error storing text documents in vector database:", error);
+          console.error(
+            "Error storing text documents in vector database:",
+            error
+          );
           return NextResponse.json(
             {
               success: false,
