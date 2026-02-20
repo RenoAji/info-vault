@@ -94,3 +94,9 @@ Delete the embedding in a specific vault (/script/delete.ts) :
 ```bash
 npm run chroma:delete
 ```
+
+### Future Improvements
+
+- The current code uses naive RAG techniques. Implement more advanced RAG techniques for better document understanding.
+- Add support for more document formats (docx, pptx, etc).
+- The current document loader is basic and still has limitations. Implement a more advanced document loader for better text extraction and understanding.
