@@ -3,6 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import "highlight.js/styles/github-dark.css";
 
 // 💡 ADD THESE PLUGINS FOR LATEX AND SECURITY
 import remarkMath from "remark-math";
