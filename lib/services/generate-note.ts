@@ -6,6 +6,12 @@ import { TextLoader } from "langchain/document_loaders/fs/text";
 import { TokenTextSplitter } from "@langchain/textsplitters";
 import { Document } from "@langchain/core/documents";
 import { ChatOpenAI } from "@langchain/openai";
+import { LRUCache } from "lru-cache";
+
+const noteCache = new LRUCache<string, string>({
+  max: 20,
+  ttl: 1000 * 60 * 60,
+});
 
 // Constants
 const TOKEN_MAX = 1500;
@@ -16,6 +22,7 @@ interface Source {
   id: number;
   url: string;
   name: string;
+  updatedAt?: Date;
 }
 
 interface GenerateNoteResult {
@@ -25,7 +32,8 @@ interface GenerateNoteResult {
 }
 
 export const generateNote = async (
-  vaultId: number | string
+  vaultId: number | string,
+  options?: { force?: boolean }
 ): Promise<GenerateNoteResult> => {
   try {
     // Validate environment variables
@@ -62,8 +70,9 @@ export const generateNote = async (
       model: OPENROUTER_MODEL || "deepseek/deepseek-r1-0528-qwen3-8b:free",
       apiKey: OPENROUTER_API_KEY,
       temperature: 1.0,
+      timeout: 120000,
       configuration: {
-        baseURL: "https://openrouter.ai/api/v1", // The OpenRouter API endpoint
+        baseURL: "https://openrouter.ai/api/v1",
       },
     });
 
@@ -71,7 +80,7 @@ export const generateNote = async (
     console.log("Fetching sources for vaultId:", vaultId);
     const sources: Source[] = await prisma.source.findMany({
       where: { vaultId: vaultIdInt },
-      select: { id: true, url: true, name: true }, // Only select needed fields
+      select: { id: true, url: true, name: true, updatedAt: true },
     });
 
     if (sources.length === 0) {
@@ -79,6 +88,17 @@ export const generateNote = async (
         success: false,
         error: "No sources found for this vault",
       };
+    }
+
+    const sourceSig = sources
+      .map((s) => new Date(s.updatedAt as any).getTime())
+      .sort()
+      .join(",");
+    const cacheKey = `note:${vaultIdInt}:${sources.length}:${sourceSig}`;
+    if (!options?.force && noteCache.has(cacheKey)) {
+      const cached = noteCache.get(cacheKey)!;
+      await saveNote(vaultIdInt, cached);
+      return { success: true, notes: cached };
     }
 
     // Load and process documents
@@ -101,6 +121,7 @@ export const generateNote = async (
 
     // Save to database
     await saveNote(vaultIdInt, finalSummary);
+    noteCache.set(cacheKey, finalSummary);
 
     return {
       success: true,

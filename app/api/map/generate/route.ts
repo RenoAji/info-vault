@@ -5,6 +5,13 @@ import { HumanMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { JsonOutputParser } from "@langchain/core/output_parsers";
+import { LRUCache } from "lru-cache";
+import crypto from "crypto";
+
+const mapCache = new LRUCache<string, any>({
+  max: 20,
+  ttl: 1000 * 60 * 60 * 24,
+});
 
 export const GET = async (req: NextRequest) => {
   console.log("Mind map generation request received");
@@ -64,11 +71,28 @@ export const GET = async (req: NextRequest) => {
       );
     }
 
+    const noteHash = crypto.createHash("sha1").update(note).digest("hex");
+    const cacheKey = `map:${vaultIdInt}:${noteHash}`;
+    if (mapCache.has(cacheKey)) {
+      const cached = mapCache.get(cacheKey);
+      await prisma.map.upsert({
+        where: { vaultId: vaultIdInt },
+        update: { content: cached },
+        create: {
+          name: "Generated Mind Map",
+          vaultId: vaultIdInt,
+          content: cached,
+        },
+      });
+      return NextResponse.json({ success: true, mindMap: cached });
+    }
+
     // Initialize LLM
     const llm = new ChatOpenAI({
       model: OPENROUTER_MODEL || "openai/gpt-3.5-turbo",
       apiKey: OPENROUTER_API_KEY,
       temperature: 0.7,
+      timeout: 120000,
       configuration: {
         baseURL: "https://openrouter.ai/api/v1",
       },
@@ -126,6 +150,7 @@ Remember: Return ONLY valid JSON, no other text or formatting.`);
         content: response,
       },
     });
+    mapCache.set(cacheKey, response);
 
     return NextResponse.json({
       success: true,

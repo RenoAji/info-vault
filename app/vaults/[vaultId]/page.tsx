@@ -132,11 +132,9 @@ export default function VaultPage() {
     e.preventDefault();
     if (!userInput.trim()) return;
 
-    // Add user message to chat
     const userMessage = { role: "user", content: userInput };
-    setChatMessages((prev) => [...prev, userMessage]);
-
-    // Clear input and set loading
+    const allMessages = [...chatMessages, userMessage];
+    setChatMessages([...allMessages, { role: "assistant", content: "" }]);
     setUserInput("");
     setChatLoading(true);
 
@@ -145,37 +143,76 @@ export default function VaultPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: chatMessages.concat(userMessage),
+          messages: allMessages,
           vaultId: vaultId,
-        }), // Send all messages including user input
+        }),
       });
 
-      const result = await response.json();
-      if (result.success) {
-        // Add AI response to chat
-        setChatMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: result.answer },
-        ]);
-      } else {
-        // Handle error
-        setChatMessages((prev) => [
-          ...prev,
-          {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const result = await response.json();
+        setChatMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
             role: "assistant",
-            content: "Sorry, I encountered an error processing your request.",
-          },
-        ]);
+            content:
+              result.error ||
+              "Sorry, I encountered an error processing your request.",
+          };
+          return updated;
+        });
+        return;
+      }
+
+      if (!response.body) throw new Error("No response body");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === "token") {
+              setChatMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                updated[updated.length - 1] = {
+                  ...last,
+                  content: (last?.content || "") + data.content,
+                };
+                return updated;
+              });
+            } else if (data.type === "error") {
+              setChatMessages((prev) => {
+                const updated = [...prev];
+                updated[updated.length - 1] = {
+                  role: "assistant",
+                  content: data.error || "Sorry, I encountered an error.",
+                };
+                return updated;
+              });
+            }
+          } catch {}
+        }
       }
     } catch (error) {
       console.error("Chat error:", error);
-      setChatMessages((prev) => [
-        ...prev,
-        {
+      setChatMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
           role: "assistant",
           content: "Sorry, I encountered an error processing your request.",
-        },
-      ]);
+        };
+        return updated;
+      });
     } finally {
       setChatLoading(false);
     }
